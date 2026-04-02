@@ -1,0 +1,60 @@
+services:
+  database:
+    build: ./database
+    container_name: application-db-dev
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: application_db
+      MYSQL_USER: application_user
+      MYSQL_PASSWORD: application_password
+    ports:
+      - '3308:3306'
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - application-network-dev
+
+  backend:
+    build: ./backend
+    container_name: application-backend-dev
+    environment:
+      DB_HOST: database
+      DB_NAME: application_db
+      DB_USER: application_user
+      DB_PASSWORD: application_password
+      FLASK_ENV: development
+    restart: on-failure
+    ports:
+      - '5000:5000'
+    depends_on:
+      - database
+    networks:
+      - application-network-dev
+    volumes:
+      - ./backend:/app
+    command: flask run --host=0.0.0.0 --reload
+
+  frontend:
+    build: ./frontend
+    container_name: application-frontend-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+    networks:
+      - application-network-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+volumes:
+  mysql_data_dev:
+
+networks:
+  application-network-dev:
+    driver: bridge

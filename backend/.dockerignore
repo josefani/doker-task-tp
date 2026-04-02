@@ -1,0 +1,12 @@
+#Les fichiers à ignorer
+__pycache__
+dist
+*.env
+.env.example
+*.local
+
+.vscode
+
+.gitignore
+.dockerignore
+Dockerfile

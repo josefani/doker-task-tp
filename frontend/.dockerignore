@@ -1,0 +1,15 @@
+#Les fichiers à ignorer
+
+node_modules
+.npm
+.yarn
+
+dist
+*.env
+*.local
+
+.vscode
+
+.gitignore
+.dockerignore
+Dockerfile

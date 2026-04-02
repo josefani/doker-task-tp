@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  namespace: default
+  labels:
+    app: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+        - name: mysql
+          image: doker-task-tp-database:latest # Image buildée depuis ./database
+          imagePullPolicy: IfNotPresent # Utilise l'image locale (dev)
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: application-secret
+                  key: mysql-root-password
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: application-config
+                  key: MYSQL_DATABASE
+            - name: MYSQL_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: application-config
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: application-secret
+                  key: mysql-password
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+            # init.sql doit être intégré dans l'image (COPY dans le Dockerfile)
+            # ou monté via un ConfigMap séparé :
+            # - name: init-sql
+            #   mountPath: /docker-entrypoint-initdb.d/init.sql
+            #   subPath: init.sql
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+            initialDelaySeconds: 15
+            periodSeconds: 5
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+        # Décommenter si init.sql est géré via ConfigMap :
+        # - name: init-sql
+        #   configMap:
+        #     name: mysql-init-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database-service
+  namespace: default
+  labels:
+    app: database
+spec:
+  selector:
+    app: database
+  ports:
+    - protocol: TCP
+      port: 3306 # Port interne cluster
+      targetPort: 3306
+  type: ClusterIP # Accessible uniquement en interne (pas exposé à l'extérieur)

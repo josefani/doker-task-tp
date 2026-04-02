@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: default
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: doker-task-tp-frontend:latest
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
+          command: ['sh', '-c', 'npm install && npm run dev']
+          ports:
+            - containerPort: 5173
+          env:
+            - name: CHOKIDAR_USEPOLLING
+              valueFrom:
+                configMapKeyRef:
+                  name: application-config
+                  key: CHOKIDAR_USEPOLLING
+            - name: VITE_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: application-config
+                  key: VITE_API_URL
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 60 # npm install peut prendre du temps
+            periodSeconds: 15
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5173
+            initialDelaySeconds: 45
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: default
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 5173
+      targetPort: 5173
+      nodePort: 30173 # Accès via http://<node-ip>:30173 en dev
+  type: NodePort # Changer en LoadBalancer ou Ingress en prod
