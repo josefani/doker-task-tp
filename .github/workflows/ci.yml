@@ -116,8 +116,8 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/jose
+          chmod 600 ~/.ssh/jose
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       - name: Copy manifests to server
@@ -127,8 +127,8 @@ jobs:
       - name: Deploy on K3s
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend-deployment.yaml
-            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend-deployment.yaml
+            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend.yml
+            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend.yml
 
             kubectl apply -f /tmp/k8s/
 
