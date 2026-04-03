@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: mysql
-          image: doker-task-tp-database:latest # Image buildée depuis ./database
+          image: docker-task-tp-database:latest # Image buildée depuis ./database
           imagePullPolicy: IfNotPresent # Utilise l'image locale (dev)
           ports:
             - containerPort: 3306
