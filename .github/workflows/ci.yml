@@ -133,8 +133,8 @@ jobs:
           ssh -i ~/.ssh/jose \
               -o StrictHostKeyChecking=no \
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend.yaml
-            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend.yaml
+            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend.yml
+            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend.yml
             kubectl apply -f /tmp/k8s/
             kubectl rollout status deployment/frontend --timeout=120s
             kubectl rollout status deployment/backend --timeout=120s
