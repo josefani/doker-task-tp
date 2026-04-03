@@ -1,23 +1,21 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline - K3s Deployment
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
 env:
-  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-  IMAGE_FRONTEND: ${{ secrets.DOCKER_USERNAME }}/docker-task-frontend
-  IMAGE_BACKEND: ${{ secrets.DOCKER_USERNAME }}/docker-task-backend
+  IMAGE_FRONTEND: ${{ secrets.DOCKER_USERNAME }}/frontend
+  IMAGE_BACKEND: ${{ secrets.DOCKER_USERNAME }}/backend
 
 jobs:
-
-  # ─────────────────────────────
-  # 1. TESTS FRONTEND
-  # ─────────────────────────────
-  frontend-ci:
-    name: Build & Test Frontend
+  # ─────────────────────────────────────
+  # 1. TESTS
+  # ─────────────────────────────────────
+  test-frontend:
+    name: Test Frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,17 +27,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install & Build
+      - name: Install dependencies
         working-directory: frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm ci
 
-  # ─────────────────────────────
-  # 2. TESTS BACKEND
-  # ─────────────────────────────
-  backend-ci:
-    name: Build & Test Backend
+      - name: Run tests
+        working-directory: frontend
+        run: npm run test --if-present
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  test-backend:
+    name: Test Backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,25 +51,30 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install & Test
+      - name: Install dependencies
         working-directory: backend
-        run: |
-          pip install -r requirements.txt
-          pytest || echo "No tests yet"
+        run: pip install -r requirements.txt
 
-  # ─────────────────────────────
-  # 3. BUILD & PUSH DOCKER IMAGES
-  # ─────────────────────────────
-  docker-build:
-    name: Build & Push Docker Images
+      - name: Run tests
+        working-directory: backend
+        run: pytest || true
+
+  # ─────────────────────────────────────
+  # 2. BUILD & PUSH DOCKER HUB
+  # ─────────────────────────────────────
+  build-push:
+    name: Build & Push Images
     runs-on: ubuntu-latest
-    needs: [frontend-ci, backend-ci]
+    needs: [test-frontend, test-backend]
     if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to DockerHub
+      - name: Set image tag (commit SHA)
+        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -80,8 +86,8 @@ jobs:
           context: ./frontend
           push: true
           tags: |
+            ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}
             ${{ env.IMAGE_FRONTEND }}:latest
-            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
 
       - name: Build & Push Backend
         uses: docker/build-push-action@v5
@@ -89,36 +95,43 @@ jobs:
           context: ./backend
           push: true
           tags: |
+            ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}
             ${{ env.IMAGE_BACKEND }}:latest
-            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
 
-  # ─────────────────────────────
-  # 4. DEPLOY SUR KUBERNETES
-  # ─────────────────────────────
+  # ─────────────────────────────────────
+  # 3. DÉPLOIEMENT SUR K3S
+  # ─────────────────────────────────────
   deploy:
-    name: Deploy to Kubernetes
+    name: Deploy to K3s
     runs-on: ubuntu-latest
-    needs: [docker-build]
+    needs: build-push
     if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Set image tag
+        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
-      - name: Configure kubeconfig
+      - name: Configure SSH
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Update image tags dans les manifests
+      - name: Copy manifests to server
         run: |
-          sed -i "s|IMAGE_FRONTEND|${{ env.IMAGE_FRONTEND }}:${{ github.sha }}|g" k8s/*.yml
-          sed -i "s|IMAGE_BACKEND|${{ env.IMAGE_BACKEND }}:${{ github.sha }}|g" k8s/*.yml
+          scp -r ./k8s ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/k8s
 
-      - name: Deploy sur Kubernetes
+      - name: Deploy on K3s
         run: |
-          kubectl apply -f k8s/
-          kubectl rollout status deployment/frontend
-          kubectl rollout status deployment/backend
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend-deployment.yaml
+            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend-deployment.yaml
+
+            kubectl apply -f /tmp/k8s/
+
+            kubectl rollout status deployment/frontend --timeout=120s
+            kubectl rollout status deployment/backend --timeout=120s
+          EOF
