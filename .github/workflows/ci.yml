@@ -116,22 +116,26 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/jose
+          echo "${{ secrets.SERVER_SSH_KEY }}" | tr -d '\r' > ~/.ssh/jose
           chmod 600 ~/.ssh/jose
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Copy manifests to server
         run: |
-          scp -r ./k8s ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/k8s
+          scp -i ~/.ssh/jose \
+              -o StrictHostKeyChecking=no \
+              -r ./k8s \
+              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/k8s
 
       - name: Deploy on K3s
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
-            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend.yml
-            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend.yml
-
+          ssh -i ~/.ssh/jose \
+              -o StrictHostKeyChecking=no \
+              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+            sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend.yaml
+            sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend.yaml
             kubectl apply -f /tmp/k8s/
-
             kubectl rollout status deployment/frontend --timeout=120s
             kubectl rollout status deployment/backend --timeout=120s
           EOF
