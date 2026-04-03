@@ -114,8 +114,8 @@ jobs:
 
       - name: Update image tags dans les manifests
         run: |
-          sed -i "s|IMAGE_FRONTEND|${{ env.IMAGE_FRONTEND }}:${{ github.sha }}|g" k8s/*.yaml
-          sed -i "s|IMAGE_BACKEND|${{ env.IMAGE_BACKEND }}:${{ github.sha }}|g" k8s/*.yaml
+          sed -i "s|IMAGE_FRONTEND|${{ env.IMAGE_FRONTEND }}:${{ github.sha }}|g" k8s/*.yml
+          sed -i "s|IMAGE_BACKEND|${{ env.IMAGE_BACKEND }}:${{ github.sha }}|g" k8s/*.yml
 
       - name: Deploy sur Kubernetes
         run: |
