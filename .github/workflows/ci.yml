@@ -9,6 +9,7 @@ on:
 env:
   IMAGE_FRONTEND: ${{ secrets.DOCKER_USERNAME }}/frontend
   IMAGE_BACKEND: ${{ secrets.DOCKER_USERNAME }}/backend
+  IMAGE_DATABASE: ${{ secrets.DOCKER_USERNAME }}/database  # ← ajouté
 
 jobs:
   # ─────────────────────────────────────
@@ -98,6 +99,15 @@ jobs:
             ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}
             ${{ env.IMAGE_BACKEND }}:latest
 
+      - name: Build & Push Database  # ← ajouté
+        uses: docker/build-push-action@v5
+        with:
+          context: ./database
+          push: true
+          tags: |
+            ${{ env.IMAGE_DATABASE }}:${{ env.TAG }}
+            ${{ env.IMAGE_DATABASE }}:latest
+
   # ─────────────────────────────────────
   # 3. DÉPLOIEMENT SUR K3S
   # ─────────────────────────────────────
@@ -133,9 +143,26 @@ jobs:
           ssh -i ~/.ssh/jose \
               -o StrictHostKeyChecking=no \
               ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << EOF
+
+            # Mise à jour des images avec le bon tag
             sed -i "s|image: .*frontend.*|image: ${{ env.IMAGE_FRONTEND }}:${{ env.TAG }}|g" /tmp/k8s/frontend.yml
             sed -i "s|image: .*backend.*|image: ${{ env.IMAGE_BACKEND }}:${{ env.TAG }}|g" /tmp/k8s/backend.yml
-            kubectl apply -f /tmp/k8s/
-            kubectl rollout status deployment/frontend --timeout=120s
+            sed -i "s|image: .*database.*|image: ${{ env.IMAGE_DATABASE }}:${{ env.TAG }}|g" /tmp/k8s/database.yml
+
+            # Appliquer les manifests dans l'ordre logique
+            kubectl apply -f /tmp/k8s/configmap.yml
+            kubectl apply -f /tmp/k8s/secrets.yml
+            kubectl apply -f /tmp/k8s/volume.yml
+            kubectl apply -f /tmp/k8s/database.yml
+
+            # Attendre que la database soit prête avant de démarrer le backend
+            kubectl rollout status deployment/database --timeout=120s
+
+            kubectl apply -f /tmp/k8s/backend.yml
+            kubectl apply -f /tmp/k8s/frontend.yml
+
+            # Vérification finale
             kubectl rollout status deployment/backend --timeout=120s
+            kubectl rollout status deployment/frontend --timeout=120s
+
           EOF
