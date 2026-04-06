@@ -7,6 +7,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    allowedHosts: [
+      'fani-ops.duckdns.org',
+      '.duckdns.org', // Autorise tous les sous-domaines duckdns.org
+      'localhost'
+    ],
     watch: {
       usePolling: true
     },
