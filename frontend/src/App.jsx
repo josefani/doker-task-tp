@@ -8,10 +8,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://backend-service:5000';
 
 function App() {
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [apiStatus, setApiStatus] = useState('checking');
 
-  // Vérifier l'état de l'API
+  // Simulate API check (real call will work once backend is up)
   useEffect(() => {
     const checkApi = async () => {
       try {
@@ -25,76 +25,61 @@ function App() {
     checkApi();
   }, []);
 
-  // Charger les tâches depuis le backend
-  const fetchTasks = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/api/tasks`);
-      if (response.ok) {
-        const data = await response.json();
-        setTasks(data);
-      } else {
-        console.error('Erreur chargement tâches');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Charger les tâches au démarrage
+  // Mock tasks for frontend-only demo
   useEffect(() => {
-    fetchTasks();
+    setTasks([
+      {
+        id: 1,
+        title: 'Installer Docker Desktop',
+        done: true,
+        priority: 'high',
+      },
+      {
+        id: 2,
+        title: 'Créer le Dockerfile du frontend',
+        done: true,
+        priority: 'high',
+      },
+      {
+        id: 3,
+        title: 'Créer le Dockerfile du backend Flask',
+        done: false,
+        priority: 'high',
+      },
+      {
+        id: 4,
+        title: 'Configurer docker-compose.yml',
+        done: false,
+        priority: 'medium',
+      },
+      {
+        id: 5,
+        title: 'Tester la communication entre conteneurs',
+        done: false,
+        priority: 'medium',
+      },
+      {
+        id: 6,
+        title: "Publier l'image sur Docker Hub",
+        done: false,
+        priority: 'low',
+      },
+    ]);
   }, []);
 
-  // Ajouter une tâche
-  const addTask = async (title, priority) => {
-    try {
-      const response = await fetch(`${API_URL}/api/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, done: false, priority }),
-      });
-      if (response.ok) {
-        fetchTasks(); // Recharger la liste
-      }
-    } catch (error) {
-      console.error('Erreur ajout:', error);
-    }
+  const addTask = (title, priority) => {
+    const newTask = { id: Date.now(), title, done: false, priority };
+    setTasks((prev) => [newTask, ...prev]);
   };
 
-  // Basculer l'état d'une tâche
-  const toggleTask = async (id) => {
-    const task = tasks.find(t => t.id === id);
-    if (!task) return;
-    
-    try {
-      const response = await fetch(`${API_URL}/api/tasks/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...task, done: !task.done }),
-      });
-      if (response.ok) {
-        fetchTasks(); // Recharger la liste
-      }
-    } catch (error) {
-      console.error('Erreur mise à jour:', error);
-    }
+  const toggleTask = (id) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+    );
   };
 
-  // Supprimer une tâche
-  const deleteTask = async (id) => {
-    try {
-      const response = await fetch(`${API_URL}/api/tasks/${id}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        fetchTasks(); // Recharger la liste
-      }
-    } catch (error) {
-      console.error('Erreur suppression:', error);
-    }
+  const deleteTask = (id) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
   const stats = {
@@ -104,9 +89,107 @@ function App() {
   };
 
   return (
-    // ... le reste du JSX reste identique
     <div className="app">
-      {/* ... gardez le même contenu JSX ... */}
+      <div className="noise-overlay" />
+
+      <header className="header">
+        <div className="header-inner">
+          <div className="logo-group">
+            <span className="logo-icon">⬡</span>
+            <div>
+              <h1 className="logo-title">DockerTask</h1>
+              <p className="logo-sub">Travaux Pratiques — Conteneurisation</p>
+            </div>
+          </div>
+          <StatusBadge status={apiStatus} />
+        </div>
+      </header>
+
+      <main className="main">
+        <section className="stats-bar">
+          <div className="stat-card">
+            <span className="stat-num">{stats.total}</span>
+            <span className="stat-label">Total</span>
+          </div>
+          <div className="stat-card accent">
+            <span className="stat-num">{stats.done}</span>
+            <span className="stat-label">Complétées</span>
+          </div>
+          <div className="stat-card muted">
+            <span className="stat-num">{stats.pending}</span>
+            <span className="stat-label">En attente</span>
+          </div>
+          <div className="progress-wrap">
+            <div className="progress-label">
+              Progression —{' '}
+              {stats.total > 0
+                ? Math.round((stats.done / stats.total) * 100)
+                : 0}
+              %
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${stats.total > 0 ? (stats.done / stats.total) * 100 : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+        </section>
+
+        <div className="content-grid">
+          <aside className="sidebar">
+            <TaskForm onAdd={addTask} />
+            <div className="info-box">
+              <h3 className="info-title">🐳 Architecture</h3>
+              <ul className="info-list">
+                <li>
+                  <span className="tag blue">frontend</span> React + Vite — port
+                  5173
+                </li>
+                <li>
+                  <span className="tag green">backend</span> Flask API — port
+                  5000
+                </li>
+                <li>
+                  <span className="tag orange">database</span> MySQL — port 3306
+                </li>
+                <li>
+                  <span className="tag purple">network</span> app-network
+                  (bridge)
+                </li>
+              </ul>
+            </div>
+          </aside>
+
+          <section className="task-section">
+            <div className="section-header">
+              <h2 className="section-title">Liste des tâches</h2>
+              <span className="task-count">
+                {tasks.length} tâche{tasks.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            {loading ? (
+              <div className="loader">Chargement...</div>
+            ) : (
+              <TaskList
+                tasks={tasks}
+                onToggle={toggleTask}
+                onDelete={deleteTask}
+              />
+            )}
+          </section>
+        </div>
+      </main>
+
+      <footer className="footer">
+        <span>TP · React + Flask + MySQL</span>
+        <span className="footer-sep">·</span>
+        <span>
+          API: <code>{API_URL}</code>
+        </span>
+      </footer>
     </div>
   );
 }
