@@ -161,6 +161,8 @@ jobs:
             kubectl apply -f /tmp/k8s/backend.yml
             kubectl apply -f /tmp/k8s/frontend.yml
 
+            kubectl apply -f cluster-issuer.yml
+
             # Vérification finale
             kubectl rollout status deployment/backend --timeout=120s
             kubectl rollout status deployment/frontend --timeout=120s

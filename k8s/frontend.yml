@@ -61,7 +61,6 @@ spec:
     app: frontend
   ports:
     - protocol: TCP
-      port: 5173
+      port: 80
       targetPort: 5173
-      nodePort: 30173 # Accès via http://<node-ip>:30173 en dev
-  type: NodePort # Changer en LoadBalancer ou Ingress en prod
+  type: ClusterIP # Changer en LoadBalancer ou Ingress en prod
