@@ -9,7 +9,7 @@ CORS(app)  # Autorise les requêtes cross-origin depuis le frontend React
 # ── Configuration de la base de données ────────────────────────
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     f"mysql+pymysql://"
-    f"{os.environ.get('DB_USER', 'taskuser')}:"
+    f"{os.environ.get('DB_USER', 'application_user')}:"
     f"{os.environ.get('DB_PASSWORD', 'taskpass')}@"
     f"{os.environ.get('DB_HOST', 'localhost')}:"
     f"{os.environ.get('DB_PORT', '3306')}/"
