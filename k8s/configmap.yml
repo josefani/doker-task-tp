@@ -14,4 +14,4 @@ data:
   FLASK_ENV: 'development'
   # Frontend
   CHOKIDAR_USEPOLLING: 'true'
-  VITE_API_URL: 'http://backend-service:5000'
+  VITE_API_URL: 'backend-service:default:svc.cluster.local:5000'

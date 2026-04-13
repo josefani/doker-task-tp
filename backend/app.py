@@ -2,14 +2,20 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from models import db, Task
 import os
+import time # Importé pour mesurer la durée des requêtes
+
+# --- NOUVEAUX IMPORTS POUR PROMETHEUS ---
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from metrics import REQUEST_COUNT, REQUEST_LATENCY 
+# ----------------------------------------
 
 app = Flask(__name__)
-CORS(app)  # Autorise les requêtes cross-origin depuis le frontend React
+CORS(app)
 
 # ── Configuration de la base de données ────────────────────────
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     f"mysql+pymysql://"
-    f"{os.environ.get('DB_USER', 'application_user')}:"
+    f"{os.environ.get('DB_USER', 'taskuser')}:"
     f"{os.environ.get('DB_PASSWORD', 'taskpass')}@"
     f"{os.environ.get('DB_HOST', 'localhost')}:"
     f"{os.environ.get('DB_PORT', '3306')}/"
@@ -18,6 +24,40 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+
+# ── LOGIQUE DE COLLECTE DES METRIQUES ──────────────────────────
+
+@app.before_request
+def start_timer():
+    """S'exécute avant chaque requête pour mémoriser l'heure de début."""
+    request.start_time = time.time()
+
+@app.after_request
+def log_request(response):
+    """S'exécute après chaque requête pour calculer le temps et incrémenter le compteur."""
+    # On ne mesure pas les appels à l'endpoint /metrics lui-même pour ne pas fausser les stats
+    if request.path != '/metrics':
+        # 1. Calcul de la latence (temps écoulé)
+        latency = time.time() - request.start_time
+        
+        # 2. Mise à jour du compteur (Nombre de requêtes par méthode, route et code HTTP)
+        REQUEST_COUNT.labels(
+            method=request.method, 
+            endpoint=request.path, 
+            http_status=response.status_code
+        ).inc()
+        
+        # 3. Mise à jour de l'histogramme (Temps de réponse par route)
+        REQUEST_LATENCY.labels(endpoint=request.path).observe(latency)
+        
+    return response
+
+# ── EXPOSITION DES METRIQUES ────────────────────────────────────
+
+@app.route('/metrics')
+def metrics():
+    """Route spéciale que le serveur Prometheus viendra consulter toutes les X secondes."""
+    return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 # ── Health check ────────────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
